@@ -12,6 +12,7 @@ import (
 	"os"
 	"os/exec"
 	"runtime/pprof"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -154,6 +155,7 @@ func ReadObject(ctx context.Context, workerID int, bucketHandle *storage.BucketH
 
 type peerEvent struct {
 	time  time.Time
+	dur   time.Duration
 	event string
 	peer  *peer.Peer
 }
@@ -243,12 +245,14 @@ func main() {
 					}
 					if *clientProtocol == "grpc" && bytesRead > 0 {
 						mu.Lock()
+						end := time.Now()
 						events = append(events, peerEvent{
 							time:  peerStrt,
 							event: "start",
 							peer:  p,
 						}, peerEvent{
-							time:  time.Now(),
+							time:  end,
+							dur:   end.Sub(peerStrt),
 							event: "end",
 							peer:  p,
 						})
@@ -288,6 +292,8 @@ func main() {
 	favgNIB := float64(0)
 	favgNIC := float64(0)
 
+	peerDuration := make(map[string][]time.Duration)
+
 	if *clientProtocol == "grpc" {
 		prevMicro := microOffset(events[0].time)
 		for _, event := range events {
@@ -306,6 +312,7 @@ func main() {
 				}
 			}
 			if event.event == "end" {
+				peerDuration[event.peer.Addr.String()] = append(peerDuration[event.peer.Addr.String()], event.dur)
 				backend_load[event.peer.Addr.String()]--
 				conn_load[conn_key]--
 			}
@@ -360,6 +367,22 @@ func main() {
 			fmt.Printf("Average maxRPB/s: %.3f\n", favgRPB)
 			fmt.Printf("Average NIB/s: %.3f (%.2f MiB/s per backend)\n", favgNIB, bndwth/favgNIB)
 			fmt.Printf("Average NIC/s: %.3f (%.2f MiB/s per connection)\n", favgNIC, bndwth/favgNIC)
+		}
+
+		for p, durs := range peerDuration {
+			slices.Sort(durs)
+			tot := len(durs)
+			p50 := durs[tot*50/100].Milliseconds()
+			p75 := durs[tot*75/100].Milliseconds()
+			p90 := durs[tot*90/100].Milliseconds()
+			p95 := durs[tot*95/100].Milliseconds()
+			p99 := durs[tot*99/100].Milliseconds()
+			pmax := durs[tot-1].Milliseconds()
+			fmt.Printf("Peer %s durations: %d, 50%%: %d, 75%%: %d, 90%%: %d, 95%%: %d, 99%%: %d, max: %d\n", p, tot, p50, p75, p90, p95, p99, pmax)
+			// for _, d := range durs {
+			// 	fmt.Printf("%d ", d.Milliseconds())
+			// }
+			// fmt.Println("")
 		}
 
 		fmt.Printf("Protocol: %s, Bandwidth: %.0f MiB/s, errors: %d\n", protocol, bndwth, errCount.Load())
