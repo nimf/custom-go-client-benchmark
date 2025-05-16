@@ -8,6 +8,7 @@ import (
 	"io"
 	"log"
 	"math"
+	"math/rand"
 	"net/http"
 	"os"
 	"os/exec"
@@ -231,7 +232,9 @@ func main() {
 	for i := 0; i < *numOfWorkers; i++ {
 		idx := i
 		eG.Go(func() error {
-			//fmt.Printf("Worker %d started\n", idx)
+			delay := rand.Intn(100)
+			time.Sleep(time.Duration(delay) * time.Millisecond)
+			fmt.Printf("Worker %d started with delay %d\n", idx, delay)
 			for {
 				select {
 				case <-actualRunCtx.Done():
