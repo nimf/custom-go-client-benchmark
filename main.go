@@ -243,7 +243,7 @@ func main() {
 					if err != nil {
 						errCount.Add(1)
 					}
-					if *clientProtocol == "grpc" && bytesRead > 0 && p.Addr != nil && p.LocalAddr != nil {
+					if *clientProtocol == "grpc" && bytesRead > 0 {
 						mu.Lock()
 						end := time.Now()
 						events = append(events, peerEvent{
@@ -297,13 +297,22 @@ func main() {
 	if *clientProtocol == "grpc" {
 		prevMicro := microOffset(events[0].time)
 		for _, event := range events {
-			conn_key := event.peer.LocalAddr.String() + "-" + event.peer.Addr.String()
+			localAddr := "UNKNOWN"
+			if event.peer.LocalAddr != nil {
+				localAddr = event.peer.LocalAddr.String()
+			}
+			remoteAddr := "UNKNOWN"
+			if event.peer.Addr != nil {
+				remoteAddr = event.peer.Addr.String()
+			}
+
+			conn_key := localAddr + "-" + remoteAddr
 			if event.event == "start" {
-				uniq_backends[event.peer.Addr.String()] = struct{}{}
-				if _, ok := backend_load[event.peer.Addr.String()]; !ok {
-					backend_load[event.peer.Addr.String()] = 1
+				uniq_backends[remoteAddr] = struct{}{}
+				if _, ok := backend_load[remoteAddr]; !ok {
+					backend_load[remoteAddr] = 1
 				} else {
-					backend_load[event.peer.Addr.String()]++
+					backend_load[remoteAddr]++
 				}
 				if _, ok := conn_load[conn_key]; !ok {
 					conn_load[conn_key] = 1
@@ -312,8 +321,8 @@ func main() {
 				}
 			}
 			if event.event == "end" {
-				peerDuration[event.peer.Addr.String()] = append(peerDuration[event.peer.Addr.String()], event.dur)
-				backend_load[event.peer.Addr.String()]--
+				peerDuration[remoteAddr] = append(peerDuration[remoteAddr], event.dur)
+				backend_load[remoteAddr]--
 				conn_load[conn_key]--
 			}
 			micro := microOffset(event.time)
