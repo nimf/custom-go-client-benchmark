@@ -243,7 +243,7 @@ func main() {
 					if err != nil {
 						errCount.Add(1)
 					}
-					if *clientProtocol == "grpc" && bytesRead > 0 {
+					if *clientProtocol == "grpc" && bytesRead > 0 && p.Addr != nil && p.LocalAddr != nil {
 						mu.Lock()
 						end := time.Now()
 						events = append(events, peerEvent{
