@@ -59,6 +59,10 @@ var (
 	// Object name = objectNamePrefix + {thread_id} + objectNameSuffix
 	objectNamePrefix = flag.String("obj-prefix", "1GB/experiment.", "Object prefix")
 	objectNameSuffix = flag.String("obj-suffix", ".0", "Object suffix")
+
+	totalBytesRead        atomic.Int64
+	lastReportedBytesRead = int64(0)
+	reportedTime          = time.Now()
 )
 
 // CreateHTTPClient create http storage client.
@@ -200,8 +204,6 @@ func main() {
 	// assumes bucket already exist
 	bucketHandle := client.Bucket(*bucketName)
 
-	var totalBytesRead atomic.Int64
-
 	warmupCtx, cancelFn := context.WithDeadline(ctx, time.Now().Add(*warmUpTime))
 	//fmt.Println("Ramp-up starts")
 
@@ -270,6 +272,10 @@ func main() {
 			}
 		})
 	}
+
+	go func() {
+		printStats(ctx)
+	}()
 
 	err = eG.Wait()
 	totalDuration := time.Since(startTime)
@@ -439,6 +445,25 @@ func printConns(ctx context.Context) {
 	time.Sleep(time.Second * 10)
 	if ctx.Err() == nil {
 		printConns(ctx)
+	}
+}
+
+func printStats(ctx context.Context) {
+	delta := totalBytesRead.Load() - lastReportedBytesRead
+	lastReportedBytesRead += delta
+	duration := time.Since(reportedTime)
+	reportedTime = reportedTime.Add(duration)
+
+	bndwth := float64(0)
+	if delta > 0 {
+		bndwth = float64(1_000_000) / float64(MiB) * float64(delta) / float64(duration.Microseconds())
+	}
+
+	fmt.Printf("%s Download speed: %.2fMiB/s\n", reportedTime.Format("15:04:05.000"), bndwth)
+
+	time.Sleep(time.Second * 1)
+	if ctx.Err() == nil {
+		printStats(ctx)
 	}
 }
 
