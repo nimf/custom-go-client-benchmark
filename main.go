@@ -171,8 +171,6 @@ func main() {
 		printConns(ctx)
 	}()
 
-	fmt.Printf("Workload start time: %s\n", time.Now().String())
-
 	var client *storage.Client
 	var err error
 	protocol := ""
@@ -199,12 +197,14 @@ func main() {
 	// assumes bucket already exist
 	bucketHandle := client.Bucket(*bucketName)
 
-	if *warmUpTime > 0 {
+	if time.Now().Add(*warmUpTime).After(time.Now()) {
 		warmupCtx, cancelFn := context.WithDeadline(ctx, time.Now().Add(*warmUpTime))
 		defer cancelFn()
-		//fmt.Println("Ramp-up starts")
+		fmt.Println("Ramp-up starts")
 
 		rampUp(warmupCtx, bucketHandle)
+	} else {
+		fmt.Println("Ramp-up skipped")
 	}
 
 	// runtime.SetMutexProfileFraction(1)
@@ -217,8 +217,9 @@ func main() {
 		pprof.StartCPUProfile(f)
 	}
 
-	//fmt.Println("Ramp-up complete. Starting run on actual traffic.")
+	fmt.Println("Ramp-up complete.")
 	startTime := time.Now()
+	fmt.Printf("Workload start time: %s\n", startTime.String())
 	var eG errgroup.Group
 
 	actualRunCtx, cancelFn := context.WithDeadline(ctx, startTime.Add(*runTime))
