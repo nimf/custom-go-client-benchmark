@@ -97,31 +97,26 @@ func CreateHTTPClient(ctx context.Context) (client *storage.Client, err error) {
 	return storage.NewClient(ctx, option.WithHTTPClient(httpClient))
 }
 
-func rampUp(warmupCtx context.Context, cancelFn context.CancelFunc, bucketHandle *storage.BucketHandle) {
-	idx := 0
+func rampUp(warmupCtx context.Context, bucketHandle *storage.BucketHandle) {
 	var eG errgroup.Group
-	for {
-		select {
-		case <-warmupCtx.Done():
-			cancelFn()
-			return
-		default:
-			if idx == *numOfWorkers {
-				eG.Wait()
-				return
-			}
-			time.Sleep(1 * time.Second)
-			eG.Go(func() error {
-				_, err := ReadObject(warmupCtx, idx, bucketHandle)
-				if err != nil {
-					err = fmt.Errorf("while reading object %v: %w", *objectNamePrefix+strconv.Itoa(idx)+*objectNameSuffix, err)
+	for idx := range *numOfWorkers {
+		eG.Go(func() error {
+			for {
+				select {
+				case <-warmupCtx.Done():
+					return nil
+				default:
+					_, err := ReadObject(warmupCtx, idx, bucketHandle)
+					if err != nil {
+						err = fmt.Errorf("while reading object %v: %w", *objectNamePrefix+strconv.Itoa(idx)+*objectNameSuffix, err)
+						return err
+					}
 					return err
 				}
-				return err
-			})
-			idx++
-		}
+			}
+		})
 	}
+	eG.Wait()
 }
 
 // CreateGrpcClient creates grpc client.
@@ -204,10 +199,13 @@ func main() {
 	// assumes bucket already exist
 	bucketHandle := client.Bucket(*bucketName)
 
-	warmupCtx, cancelFn := context.WithDeadline(ctx, time.Now().Add(*warmUpTime))
-	//fmt.Println("Ramp-up starts")
+	if *warmUpTime > 0 {
+		warmupCtx, cancelFn := context.WithDeadline(ctx, time.Now().Add(*warmUpTime))
+		defer cancelFn()
+		//fmt.Println("Ramp-up starts")
 
-	rampUp(warmupCtx, cancelFn, bucketHandle)
+		rampUp(warmupCtx, bucketHandle)
+	}
 
 	// runtime.SetMutexProfileFraction(1)
 
