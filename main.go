@@ -56,6 +56,8 @@ var (
 
 	cpuprofile = flag.String("cpuprofile", "", "write cpu profile to file")
 
+	detailedStats = flag.Bool("detailed-stats", false, "Print detailed stats")
+
 	// Object name = objectNamePrefix + {thread_id} + objectNameSuffix
 	objectNamePrefix = flag.String("obj-prefix", "1GB/experiment.", "Object prefix")
 	objectNameSuffix = flag.String("obj-suffix", ".0", "Object suffix")
@@ -377,27 +379,27 @@ func main() {
 	if err == nil && err != context.DeadlineExceeded {
 		bndwth := float64(1_000_000) / float64(MiB) * float64(totalBytesRead.Load()) / float64(totalDuration.Microseconds())
 
-		if *clientProtocol == "grpc" {
+		if *clientProtocol == "grpc" && *detailedStats {
 			fmt.Printf("Unique backends: %d\n", len(uniq_backends))
 			fmt.Printf("Average maxRPB/s: %.3f\n", favgRPB)
 			fmt.Printf("Average NIB/s: %.3f (%.2f MiB/s per backend)\n", favgNIB, bndwth/favgNIB)
 			fmt.Printf("Average NIC/s: %.3f (%.2f MiB/s per connection)\n", favgNIC, bndwth/favgNIC)
-		}
 
-		for p, durs := range peerDuration {
-			slices.Sort(durs)
-			tot := len(durs)
-			p50 := durs[tot*50/100].Milliseconds()
-			p75 := durs[tot*75/100].Milliseconds()
-			p90 := durs[tot*90/100].Milliseconds()
-			p95 := durs[tot*95/100].Milliseconds()
-			p99 := durs[tot*99/100].Milliseconds()
-			pmax := durs[tot-1].Milliseconds()
-			fmt.Printf("Peer %s durations: %d, 50%%: %d, 75%%: %d, 90%%: %d, 95%%: %d, 99%%: %d, max: %d\n", p, tot, p50, p75, p90, p95, p99, pmax)
-			// for _, d := range durs {
-			// 	fmt.Printf("%d ", d.Milliseconds())
-			// }
-			// fmt.Println("")
+			for p, durs := range peerDuration {
+				slices.Sort(durs)
+				tot := len(durs)
+				p50 := durs[tot*50/100].Milliseconds()
+				p75 := durs[tot*75/100].Milliseconds()
+				p90 := durs[tot*90/100].Milliseconds()
+				p95 := durs[tot*95/100].Milliseconds()
+				p99 := durs[tot*99/100].Milliseconds()
+				pmax := durs[tot-1].Milliseconds()
+				fmt.Printf("Peer %s durations: %d, 50%%: %d, 75%%: %d, 90%%: %d, 95%%: %d, 99%%: %d, max: %d\n", p, tot, p50, p75, p90, p95, p99, pmax)
+				// for _, d := range durs {
+				// 	fmt.Printf("%d ", d.Milliseconds())
+				// }
+				// fmt.Println("")
+			}
 		}
 
 		fmt.Printf("Protocol: %s, Bandwidth: %.0f MiB/s, errors: %d\n", protocol, bndwth, errCount.Load())
