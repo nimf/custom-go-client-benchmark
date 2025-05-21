@@ -108,10 +108,8 @@ func rampUp(warmupCtx context.Context, bucketHandle *storage.BucketHandle) {
 				default:
 					_, err := ReadObject(warmupCtx, idx, bucketHandle)
 					if err != nil {
-						err = fmt.Errorf("while reading object %v: %w", *objectNamePrefix+strconv.Itoa(idx)+*objectNameSuffix, err)
-						return err
+						fmt.Printf("Error while reading object %v: %v\n", *objectNamePrefix+strconv.Itoa(idx)+*objectNameSuffix, err)
 					}
-					return err
 				}
 			}
 		})
@@ -200,11 +198,11 @@ func main() {
 	if time.Now().Add(*warmUpTime).After(time.Now()) {
 		warmupCtx, cancelFn := context.WithDeadline(ctx, time.Now().Add(*warmUpTime))
 		defer cancelFn()
-		fmt.Println("Ramp-up starts")
+		fmt.Println("Ramp-up starts.")
 
 		rampUp(warmupCtx, bucketHandle)
 	} else {
-		fmt.Println("Ramp-up skipped")
+		fmt.Println("Ramp-up skipped.")
 	}
 
 	// runtime.SetMutexProfileFraction(1)
